@@ -15,7 +15,7 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 
 # Streamlit layout
 st.set_page_config(page_title="🍳 Recipe Extractor", layout="wide")
-st.title("🍽️ Cooking Recipe Extractor (Tamil/English)")
+st.title("🍽️ Cooking Recipe Extractor")
 
 # Sidebar: Show saved recipes
 with st.sidebar:
@@ -73,11 +73,26 @@ if st.button("Extract Recipe"):
             # Fetch transcript
             transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
             try:
-                transcript = transcripts.find_transcript(['ta', 'en'])
+                transcript = transcripts.find_transcript([
+                                            'en',   # English
+                                            'ta',   # Tamil
+                                            'hi',   # Hindi
+                                            'te',   # Telugu
+                                            'ml',   # Malayalam
+                                            'kn',   # Kannada
+                                            'mr',   # Marathi
+                                            'gu',   # Gujarati
+                                            'bn',   # Bengali
+                                            'pa',   # Punjabi
+                                            'ur',   # Urdu
+                                        ])
+
             except NoTranscriptFound:
-                transcript = next((t for t in transcripts if t.language_code in ['ta', 'en']), None)
+                major_languages = ['en', 'ta', 'hi', 'te', 'ml', 'kn', 'mr', 'gu', 'bn', 'pa', 'ur']
+                transcript = next((t for t in transcripts if t.language_code in major_languages), None)
                 if not transcript:
-                    raise NoTranscriptFound(video_id, ['ta'], transcripts)
+                    raise NoTranscriptFound(video_id, major_languages, transcripts)
+
 
             # Limit to first 4 minutes
             srt = transcript.fetch()
@@ -85,11 +100,24 @@ if st.button("Extract Recipe"):
             original_text = " ".join(entry.text for entry in filtered_srt)
 
             # Translate Tamil to English if needed
-            if transcript.language_code == 'ta':
-                st.info("🔁 Translating Tamil to English...")
+            if transcript.language_code != 'en':
+                st.info("🔁 Translating English...")
                 translation_prompt = (
-                    "Translate the following Tamil cooking video transcript to English. Don't add anything extra:\n\n"
-                    + original_text
+    "You are a smart language translator assistant.\n\n"
+    "Your task is to translate a cooking video transcript into clear, simple English. "
+    "The transcript may be in any language (e.g., Tamil, Hindi, Telugu, Malayalam, etc.).\n\n"
+    "Translate ONLY the cooking-related content. Exclude:\n"
+    "- Greetings, jokes, and personal introductions\n"
+    "- Brand mentions, promotional content, or background music descriptions\n"
+    "- Tips, comparisons, or commentary\n"
+    "- Repetitions or casual talk\n\n"
+    "Translation must be:\n"
+    "- Clear and accurate\n"
+    "- Focused only on the cooking actions, ingredients, and instructions\n"
+    "- In natural, neutral English\n"
+    "- Free of grammar or spelling errors\n\n"
+    "DO NOT add anything new. DO NOT summarize. Just return the translated cooking process in the same tone and structure as the original.\n\n"
+    f"Transcript:\n{original_text}"
                 )
                 english_text = client.generate(model=model, prompt=translation_prompt).response
             else:
